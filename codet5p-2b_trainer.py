@@ -1,10 +1,4 @@
 import os
-import warnings
-
-warnings.filterwarnings(
-    "ignore",
-    message="Passing a tuple of `past_key_values` is deprecated",
-)
 
 import torch
 from datasets import load_dataset
@@ -79,6 +73,7 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 _ensure_seq2seq_config_ids(model, tokenizer)
+model.config.use_cache = False
 
 for param in model.parameters():
     if param.requires_grad:
