@@ -1,4 +1,10 @@
 import os
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message="Passing a tuple of `past_key_values` is deprecated",
+)
 
 import torch
 from datasets import load_dataset
@@ -13,11 +19,12 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, TaskType
 
 _TRAINING_DIR = os.path.dirname(os.path.abspath(__file__))
+_USE_CUDA = torch.cuda.is_available()
 
 # --- 1. Configuration ---
 MODEL_NAME = "Salesforce/codet5p-2b" # "Salesforce/codet5p-770m"
-TRAIN_FILE = os.path.join(_TRAINING_DIR, "training_dataset", "niche_train.jsonl")
-VALID_FILE = os.path.join(_TRAINING_DIR, "training_dataset", "niche_valid.jsonl")
+TRAIN_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "train.jsonl")
+VALID_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "valid.jsonl")
 OUTPUT_DIR = os.path.join(_TRAINING_DIR, "training_results_codet5p-2b")
 
 
@@ -41,18 +48,22 @@ def _ensure_seq2seq_config_ids(model, tokenizer) -> None:
 
 
 print("Loading tokenizer and model...")
+if not _USE_CUDA:
+    print("(CPU training: fp32 weights, no fp16 autocast — needs plenty of RAM for 2B.)")
+_trust = "codet5p-2b" in MODEL_NAME
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_NAME,
     clean_up_tokenization_spaces=False,
-    trust_remote_code="codet5p-2b" in MODEL_NAME,
+    trust_remote_code=_trust,
 )
 
-model = AutoModelForSeq2SeqLM.from_pretrained(
-    MODEL_NAME,
-    trust_remote_code="codet5p-2b" in MODEL_NAME,
-    torch_dtype=torch.float16,
-    device_map="auto",
-)
+_model_kw: dict = {
+    "trust_remote_code": _trust,
+    "torch_dtype": torch.float16 if _USE_CUDA else torch.float32,
+}
+if _USE_CUDA:
+    _model_kw["device_map"] = "auto"
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, **_model_kw)
 if hasattr(model, "tie_weights"):
     model.tie_weights()
 
@@ -107,13 +118,16 @@ training_args = Seq2SeqTrainingArguments(
     learning_rate=2e-4,
     num_train_epochs=10,
     logging_steps=10,
+    logging_first_step=True,
     eval_strategy="epoch",
     save_strategy="epoch",
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",
     save_total_limit=2,
-    fp16=True,
-    report_to="none"
+    fp16=_USE_CUDA,
+    report_to="none",
+    dataloader_pin_memory=_USE_CUDA,
+    dataloader_num_workers=0,
 )
 
 data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)

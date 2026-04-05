@@ -1,4 +1,11 @@
 import os
+import warnings
+
+# Library-internal deprecation from Transformers seq2seq cache API (harmless during training).
+warnings.filterwarnings(
+    "ignore",
+    message="Passing a tuple of `past_key_values` is deprecated",
+)
 
 import torch
 from datasets import load_dataset
@@ -13,11 +20,12 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, TaskType
 
 _TRAINING_DIR = os.path.dirname(os.path.abspath(__file__))
+_USE_CUDA = torch.cuda.is_available()
 
 # 1. Configuration
 MODEL_NAME = "Salesforce/codet5p-770m"
-TRAIN_FILE = os.path.join(_TRAINING_DIR, "training_dataset", "niche_train.jsonl")
-VALID_FILE = os.path.join(_TRAINING_DIR, "training_dataset", "niche_valid.jsonl")
+TRAIN_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "train.jsonl")
+VALID_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "valid.jsonl")
 OUTPUT_DIR = os.path.join(_TRAINING_DIR, "training_results_codet5p-770m")
 
 LORA_TARGET_MODULES = ["q", "v"]
@@ -37,16 +45,17 @@ def _ensure_seq2seq_config_ids(model, tokenizer) -> None:
 
 
 print("Loading tokenizer and model...")
+if not _USE_CUDA:
+    print("(CPU training: fp32 weights, no fp16 autocast — first steps can take several minutes.)")
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_NAME,
     clean_up_tokenization_spaces=False,
 )
 
-model = AutoModelForSeq2SeqLM.from_pretrained(
-    MODEL_NAME,
-    torch_dtype=torch.float16,
-    device_map="auto",
-)
+_model_kw: dict = {"torch_dtype": torch.float16 if _USE_CUDA else torch.float32}
+if _USE_CUDA:
+    _model_kw["device_map"] = "auto"
+model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, **_model_kw)
 if hasattr(model, "tie_weights"):
     model.tie_weights()
 
@@ -107,13 +116,18 @@ training_args = Seq2SeqTrainingArguments(
     learning_rate=2e-4,
     num_train_epochs=10,
     logging_steps=10,
+    logging_first_step=True,
     eval_strategy="epoch",
     save_strategy="epoch",
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",
     save_total_limit=2,
-    fp16=True,
+    # fp16 on CPU is unsupported/slow and often looks "stalled"; use GPU for mixed precision.
+    fp16=_USE_CUDA,
     report_to="none",
+    dataloader_pin_memory=_USE_CUDA,
+    # Multiprocessing workers on Windows frequently hang the dataloader with HF Trainer.
+    dataloader_num_workers=0,
 )
 
 data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
