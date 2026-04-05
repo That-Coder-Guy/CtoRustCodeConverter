@@ -1,4 +1,4 @@
-python3.11 -m venv env
-source env/bin/activate
+py -3.12 -m venv .venv
+source .venv/bin/activate
 
-pip install -r requirements.txt
+py -3 -m pip install -r requirements.txt
