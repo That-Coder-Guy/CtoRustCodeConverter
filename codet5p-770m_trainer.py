@@ -19,7 +19,8 @@ _USE_CUDA = torch.cuda.is_available()
 MODEL_NAME = "Salesforce/codet5p-770m"
 TRAIN_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "train.jsonl")
 VALID_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "valid.jsonl")
-OUTPUT_DIR = os.path.join(_TRAINING_DIR, "training_results_codet5p-770m")
+OUTPUT_DIR = os.path.join(_TRAINING_DIR, "training_results", "codet5p-770m")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 LORA_TARGET_MODULES = ["q", "v"]
 

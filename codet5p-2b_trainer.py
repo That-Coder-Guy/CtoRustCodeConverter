@@ -16,10 +16,11 @@ _TRAINING_DIR = os.path.dirname(os.path.abspath(__file__))
 _USE_CUDA = torch.cuda.is_available()
 
 # --- 1. Configuration ---
-MODEL_NAME = "Salesforce/codet5p-2b" # "Salesforce/codet5p-770m"
+MODEL_NAME = "Salesforce/codet5p-2b"
 TRAIN_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "train.jsonl")
 VALID_FILE = os.path.join(_TRAINING_DIR, "training_datasets", "valid.jsonl")
-OUTPUT_DIR = os.path.join(_TRAINING_DIR, "training_results_codet5p-2b")
+OUTPUT_DIR = os.path.join(_TRAINING_DIR, "training_results", "codet5p-2b")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
 def _lora_target_modules(model_name: str) -> list[str]:
