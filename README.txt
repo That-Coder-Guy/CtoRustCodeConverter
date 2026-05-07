@@ -10,6 +10,19 @@ This repository trains and evaluates an LLM-based C to Rust translator.
 - `final_dataset.jsonl`: the merged training dataset used by `trainer.py` and `evaluator.py`.
 - `requirements.txt`: Python dependencies for all scripts in this repo.
 
+## Datasets and `data_sanitizer.py`
+The raw source datasets under `original_datasets/` are **too large to store directly in this repository**. The sanitization pipeline in `data_sanitizer.py` can process them, but the actual original dataset files are stored via **Git LFS** and **won’t be available / parseable unless you download/pull the LFS objects**.
+
+Because of that, this repo includes a pre-created `final_dataset.jsonl` so you can train/evaluate immediately without first downloading the large raw datasets.
+
+If you *do* have the raw datasets available locally, you can re-generate a merged, sanitized dataset by running:
+
+```bash
+py -3 data_sanitizer.py
+```
+
+This writes the merged output to `cleaned_datasets/final_dataset_v2.jsonl` (see the script constants/paths near the top of `data_sanitizer.py`).
+
 ## Folders
 - `original_datasets/`: Raw source datasets.
   - `CodeTransOcean_dataset/`: JSONL dataset files (e.g. `niche_train.jsonl`).
